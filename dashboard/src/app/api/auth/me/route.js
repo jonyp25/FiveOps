@@ -20,7 +20,7 @@ export async function GET() {
 
     // On each call, try to refresh Discord token if expired and resync roles
     try {
-      const cookieStore = cookies()
+      const cookieStore = await cookies()
       const authToken = cookieStore.get('auth_token')?.value
       if (authToken) {
         // Prune expired sessions for this user
@@ -50,7 +50,7 @@ export async function GET() {
               discordExpiresIn: tokenData.expires_in
             })
             // mirror callback behavior for optional cookie
-            cookies().set('discord_token', tokenData.access_token, {
+            cookieStore.set('discord_token', tokenData.access_token, {
               httpOnly: true,
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',

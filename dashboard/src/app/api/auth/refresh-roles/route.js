@@ -16,7 +16,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const authToken = cookieStore.get('auth_token')?.value
     if (!authToken) {
       return NextResponse.json({ error: 'Missing auth token' }, { status: 401 })

@@ -205,7 +205,7 @@ export async function verifyToken(token) {
 
 // Get current user from cookies
 export async function getCurrentUser() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('auth_token')?.value
   
   if (!token) {
