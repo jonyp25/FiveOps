@@ -133,6 +133,7 @@ export default function AdminPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-white">Admin Panel</h2>
+            <Link href="/admin/access" className="inline-block text-sm text-blue-400 underline mt-2">Gerir acesso da staff por Discord ID</Link>
             <p className="text-zinc-400 mt-1">
               Manage servers and users
             </p>
