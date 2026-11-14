@@ -1,4 +1,5 @@
 import { queryOne } from '@/lib/db'
+import { isOwnerDiscordId } from '@/lib/auth'
 
 // This helper runs ONLY in Next.js server routes. Never expose bridge credentials
 // or the upstream URL via NEXT_PUBLIC_ environment variables.
@@ -24,21 +25,15 @@ export async function fetchPrivateBackend(path, searchParams = new URLSearchPara
 export async function requireServerAccess(user, serverIdentifier) {
   if (!user || !serverIdentifier) return null
   const server = await queryOne(
-    'SELECT id, identifier FROM servers WHERE identifier = ? OR id = ? LIMIT 1',
+    'SELECT id, identifier FROM servers WHERE is_active = TRUE AND (identifier = ? OR id = ?) LIMIT 1',
     [serverIdentifier, serverIdentifier]
   )
   if (!server) return null
-  if (Boolean(user.is_admin)) return server
+  if (isOwnerDiscordId(user.discord_id)) return server
 
-  const serverAdmin = await queryOne(
+  const approved = await queryOne(
     'SELECT 1 FROM server_admins WHERE server_id = ? AND discord_id = ? LIMIT 1',
     [server.id, user.discord_id]
   )
-  if (serverAdmin) return server
-
-  const access = await queryOne(
-    'SELECT 1 FROM user_server_access WHERE user_id = ? AND server_id = ? LIMIT 1',
-    [user.id, server.id]
-  )
-  return access ? server : null
+  return approved ? server : null
 }
