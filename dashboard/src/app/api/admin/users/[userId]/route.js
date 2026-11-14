@@ -23,36 +23,12 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
     
-    // Get server access: viewer records
-    const viewerAccess = await query(
-      `SELECT usa.server_id, s.name as server_name, s.identifier, 'viewer' as role
-       FROM user_server_access usa
-       JOIN servers s ON s.id = usa.server_id
-       WHERE usa.user_id = ?`,
-      [userId]
-    )
-
-    // Get server admin/mod records
-    const adminAccess = await query(
-      `SELECT sa.server_id, s.name as server_name, s.identifier, sa.permission_level as role
-       FROM server_admins sa
-       JOIN servers s ON s.id = sa.server_id
-       WHERE sa.discord_id = ?`,
+    // A previous Discord guild entry is a pending request, not a grant.
+    const serverAccess = await query(
+      'SELECT sa.server_id, s.name AS server_name, s.identifier, sa.permission_level AS role FROM server_admins sa JOIN servers s ON s.id = sa.server_id WHERE sa.discord_id = ?',
       [targetUser.discord_id]
     )
 
-    // Merge per server: admin > moderator > viewer
-    const rank = { admin: 3, moderator: 2, viewer: 1 }
-    const merged = {}
-    for (const rec of [...viewerAccess, ...adminAccess]) {
-      const key = rec.server_id
-      const current = merged[key]
-      if (!current || (rank[rec.role] || 0) > (rank[current.role] || 0)) {
-        merged[key] = rec
-      }
-    }
-    const serverAccess = Object.values(merged)
-    
     return NextResponse.json({ user: targetUser, serverAccess })
   } catch (error) {
     console.error('Get user error:', error)
@@ -60,29 +36,9 @@ export async function GET(request, { params }) {
   }
 }
 
-// Update user (toggle admin, etc.)
-export async function PUT(request, { params }) {
-  try {
-    const user = await getCurrentUser()
-    
-    if (!user || !Boolean(user.is_admin)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    const { userId } = await params
-    const body = await request.json()
-    const { isAdmin } = body
-    
-    await query(
-      `UPDATE users SET is_admin = ? WHERE id = ?`,
-      [isAdmin, userId]
-    )
-    
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Update user error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+// Global is_admin flags no longer grant privileges: use explicit staff access.
+export async function PUT() {
+  return NextResponse.json({ error: 'Use /admin/access to manage staff permissions' }, { status: 410 })
 }
 
 // Delete user
@@ -110,35 +66,8 @@ export async function DELETE(request, { params }) {
   }
 }
 
-// Grant/revoke server access
-export async function PATCH(request, { params }) {
-  try {
-    const user = await getCurrentUser()
-    
-    if (!user || !Boolean(user.is_admin)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    const { userId } = await params
-    const body = await request.json()
-    const { serverId, action } = body // action: 'grant' or 'revoke'
-    
-    if (action === 'grant') {
-      await query(
-        `INSERT IGNORE INTO user_server_access (user_id, server_id) VALUES (?, ?)`,
-        [userId, serverId]
-      )
-    } else if (action === 'revoke') {
-      await query(
-        `DELETE FROM user_server_access WHERE user_id = ? AND server_id = ?`,
-        [userId, serverId]
-      )
-    }
-    
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Update user access error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+// Legacy user access action is intentionally disabled to avoid confusing
+// pending request records with authorization grants.
+export async function PATCH() {
+  return NextResponse.json({ error: 'Use /admin/access to manage staff permissions' }, { status: 410 })
 }
-
