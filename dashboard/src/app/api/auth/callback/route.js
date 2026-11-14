@@ -5,7 +5,7 @@ import {
   getDiscordUser, 
   upsertUser, 
   createToken,
-  syncUserServerAccess,
+  getStaffAccessForDiscord,
   upsertSession
 } from '@/lib/auth'
 
@@ -38,8 +38,8 @@ export async function GET(request) {
     // Create/update user in database
     const user = await upsertUser(discordUser)
     
-    // Sync server access
-    await syncUserServerAccess(user.id, tokenData.access_token)
+    // Discord login creates a pending account, never an automatic log grant.
+    const staff = await getStaffAccessForDiscord(user.discord_id)
     
     // Create JWT
     const token = await createToken(user)
@@ -70,7 +70,7 @@ export async function GET(request) {
       maxAge: tokenData.expires_in
     })
     
-    const response = NextResponse.redirect(new URL('/', request.url))
+    const response = NextResponse.redirect(new URL(staff.authorized ? '/' : '/access', request.url))
     response.cookies.delete('discord_oauth_state')
     return response
     
