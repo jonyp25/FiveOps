@@ -18,11 +18,11 @@ router.get('/stats/weapons', async (req, res) => {
     }
 
     const must = [
-      { term: { 'category.keyword': 'combat' } },
+      { term: { 'category': 'combat' } },
       {
         bool: {
           should: [
-            { term: { 'server.id.keyword': server_id } },
+            { term: { 'server.id': server_id } },
             { match_phrase: { 'server.id': server_id } },
             { wildcard: { 'server.id': { value: `*${server_id}*`, case_insensitive: true } } }
           ],
@@ -48,26 +48,26 @@ router.get('/stats/weapons', async (req, res) => {
       aggs: {
         top_weapons: {
           terms: {
-            field: 'payload.weaponName.keyword',
+            field: 'payload.weaponName',
             size: parseInt(limit),
             order: { _count: 'desc' }
           },
           aggs: {
             kills: {
               filter: {
-                term: { 'event_type.keyword': 'player_killed' }
+                term: { 'event_type': 'player_killed' }
               }
             },
             deaths: {
               filter: {
-                term: { 'event_type.keyword': 'player_died' }
+                term: { 'event_type': 'player_died' }
               }
             }
           }
         },
         total_combat_events: {
           value_count: {
-            field: 'event_type.keyword'
+            field: 'event_type'
           }
         }
       }
@@ -106,11 +106,11 @@ router.get('/stats/vehicles', async (req, res) => {
     }
 
     const must = [
-      { term: { 'category.keyword': 'vehicle' } },
+      { term: { 'category': 'vehicle' } },
       {
         bool: {
           should: [
-            { term: { 'server.id.keyword': server_id } },
+            { term: { 'server.id': server_id } },
             { match_phrase: { 'server.id': server_id } },
             { wildcard: { 'server.id': { value: `*${server_id}*`, case_insensitive: true } } }
           ],
@@ -136,14 +136,14 @@ router.get('/stats/vehicles', async (req, res) => {
       aggs: {
         top_vehicles: {
           terms: {
-            field: 'payload.vehicleName.keyword',
+            field: 'payload.vehicleName',
             size: parseInt(limit),
             order: { _count: 'desc' }
           }
         },
         total_vehicle_events: {
           value_count: {
-            field: 'event_type.keyword'
+            field: 'event_type'
           }
         }
       }
@@ -179,7 +179,7 @@ router.get('/stats', async (req, res) => {
       {
         bool: {
           should: [
-            { term: { 'server.id.keyword': server_id } },
+            { term: { 'server.id': server_id } },
             { match_phrase: { 'server.id': server_id } },
             { wildcard: { 'server.id': { value: `*${server_id}*`, case_insensitive: true } } }
           ],
@@ -207,7 +207,7 @@ router.get('/stats', async (req, res) => {
           value_count: { field: '@timestamp' }
         },
         by_category: {
-          terms: { field: 'category.keyword', size: 20 }
+          terms: { field: 'category', size: 20 }
         },
         by_event_type: {
           // event_type is a keyword field; use it directly
@@ -232,7 +232,7 @@ router.get('/stats', async (req, res) => {
       {
         bool: {
           should: [
-            { term: { 'server.id.keyword': server_id } },
+            { term: { 'server.id': server_id } },
             { match_phrase: { 'server.id': server_id } },
             { wildcard: { 'server.id': { value: `*${server_id}*`, case_insensitive: true } } }
           ],

@@ -1,0 +1,68 @@
+name: FiveOps Dashboard - Build and Security Checks
+
+on:
+  push:
+    branches:
+      - chore/prepare-secure-vercel-dashboard
+  pull_request:
+    paths:
+      - 'dashboard/**'
+      - 'backend/**'
+      - '.github/workflows/fiveops-dashboard-checks.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install and refresh local dependency lock
+        run: npm install --no-fund --no-audit
+      - name: Build
+        run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical
+      - name: Lint
+        run: npm run lint
+
+  verify-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm install --no-fund --no-audit
+      - name: Apply non-breaking security fixes to backend dependencies
+        run: npm audit fix --omit=dev --no-fund || true
+      - name: Validate backend JavaScript syntax
+        run: |
+          node --check src/server.js
+          node --check src/routes/internal.js
+          node --check src/routes/log.js
+          node --check src/routes/meta.js
+          node --check src/routes/stats.js
+      - name: Audit backend production dependencies
+        run: npm audit --omit=dev --audit-level=critical

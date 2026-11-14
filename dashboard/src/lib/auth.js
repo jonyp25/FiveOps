@@ -3,20 +3,24 @@ import { cookies } from 'next/headers'
 import { query, queryOne } from './db'
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this'
+  process.env.JWT_SECRET || ''
 )
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
-const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3001/api/auth/callback'
+const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001/api/auth/callback')
 
 // Generate Discord OAuth URL
-export function getDiscordAuthUrl() {
+export function getDiscordAuthUrl(state) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI || !state) {
+    throw new Error('Discord OAuth configuration incomplete')
+  }
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     redirect_uri: DISCORD_REDIRECT_URI,
     response_type: 'code',
-    scope: 'identify email guilds guilds.members.read'
+    scope: 'identify email guilds guilds.members.read',
+    state
   })
   return `https://discord.com/api/oauth2/authorize?${params.toString()}`
 }
@@ -135,6 +139,9 @@ export async function upsertUser(discordUser) {
 
 // Create JWT token
 export async function createToken(user) {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must contain at least 32 characters')
+  }
   const token = await new SignJWT({
     userId: user.id,
     discordId: user.discord_id,
@@ -203,80 +210,87 @@ export async function verifyToken(token) {
   }
 }
 
-// Get current user from cookies
-export async function getCurrentUser() {
-  const cookieStore = cookies()
+// Explicit owner bootstrap is controlled through a private Vercel environment
+// variable. Never grant access because someone merely belongs to the Discord.
+export function isOwnerDiscordId(discordId) {
+  const ids = (process.env.FIVEOPS_OWNER_DISCORD_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+  return ids.includes(String(discordId || ''))
+}
+
+export async function getStaffAccessForDiscord(discordId) {
+  if (isOwnerDiscordId(discordId)) {
+    return { authorized: true, isAdmin: true, isOwner: true, role: 'admin' }
+  }
+  const grants = await query(
+    'SELECT sa.permission_level FROM server_admins sa INNER JOIN servers s ON s.id = sa.server_id WHERE sa.discord_id = ? AND s.is_active = TRUE',
+    [String(discordId || '')]
+  )
+  const role = ['admin', 'moderator', 'viewer'].find((level) =>
+    grants.some((grant) => grant.permission_level === level)
+  ) || null
+  return { authorized: Boolean(role), isAdmin: role === 'admin', isOwner: false, role }
+}
+
+// Authentication checks the signed JWT and server-side session but does not
+// imply authorization to view personal log data. Pending members use this
+// helper only on the auth/me and access-request endpoints.
+export async function getAuthenticatedUser() {
+  const cookieStore = await cookies()
   const token = cookieStore.get('auth_token')?.value
-  
-  if (!token) {
-    return null
-  }
-  
+  if (!token) return null
+
   const payload = await verifyToken(token)
-  if (!payload) {
-    return null
-  }
-  
-  const user = await queryOne(
-    'SELECT * FROM users WHERE id = ?',
-    [payload.userId]
-  )
-  
-  return user
+  if (!payload) return null
+
+  const session = await getSessionByToken(token)
+  if (!session || new Date(session.expires_at) <= new Date()) return null
+
+  return queryOne('SELECT * FROM users WHERE id = ?', [payload.userId])
 }
 
-// Get servers user has access to
+// All existing data/admin APIs use getCurrentUser. This deliberately returns
+// null for pending, unapproved and revoked accounts: fail closed by default.
+export async function getCurrentUser() {
+  const user = await getAuthenticatedUser()
+  if (!user) return null
+  const grant = await getStaffAccessForDiscord(user.discord_id)
+  if (!grant.authorized) return null
+  return {
+    ...user,
+    is_admin: grant.isAdmin,
+    is_owner: grant.isOwner,
+    staff_role: grant.role
+  }
+}
+
+// The old user_server_access records are *requests only*, never access grants.
 export async function getUserServers(userId) {
-  const servers = await query(
-    `SELECT s.* 
-     FROM servers s
-     INNER JOIN user_server_access usa ON s.id = usa.server_id
-     WHERE usa.user_id = ? AND s.is_active = TRUE`,
-    [userId]
+  const user = await queryOne('SELECT id, discord_id FROM users WHERE id = ?', [userId])
+  if (!user) return []
+  if (isOwnerDiscordId(user.discord_id)) {
+    return query('SELECT id, name, identifier FROM servers WHERE is_active = TRUE ORDER BY created_at DESC')
+  }
+  return query(
+    'SELECT s.id, s.name, s.identifier FROM servers s INNER JOIN server_admins sa ON sa.server_id = s.id WHERE sa.discord_id = ? AND s.is_active = TRUE ORDER BY s.created_at DESC',
+    [user.discord_id]
   )
-  return servers
 }
 
-// Check if user has access to a channel
 export async function canAccessChannel(userId, channelId) {
-  const access = await queryOne(
-    `SELECT s.id FROM log_channels lc
-     INNER JOIN servers s ON lc.server_id = s.id
-     INNER JOIN user_server_access usa ON s.id = usa.server_id
-     WHERE usa.user_id = ? AND lc.id = ?`,
-    [userId, channelId]
+  const user = await queryOne('SELECT discord_id FROM users WHERE id = ?', [userId])
+  if (!user) return false
+  const row = await queryOne(
+    'SELECT s.id FROM log_channels lc INNER JOIN servers s ON s.id = lc.server_id WHERE lc.id = ? AND s.is_active = TRUE LIMIT 1',
+    [channelId]
   )
-  return !!access
-}
-
-// Update user's server access based on Discord guilds
-export async function syncUserServerAccess(userId, discordAccessToken) {
-  const guilds = await getDiscordGuilds(discordAccessToken)
-  const guildIds = guilds.map(g => g.id)
-  
-  if (guildIds.length === 0) {
-    return // No guilds to sync
-  }
-  
-  // Get servers that match user's Discord guilds
-  // MySQL requires individual placeholders for IN clause
-  const placeholders = guildIds.map(() => '?').join(', ')
-  const servers = await query(
-    `SELECT * FROM servers WHERE discord_guild_id IN (${placeholders})`,
-    guildIds
+  if (!row) return false
+  if (isOwnerDiscordId(user.discord_id)) return true
+  const grant = await queryOne(
+    'SELECT 1 FROM server_admins WHERE server_id = ? AND discord_id = ? LIMIT 1',
+    [row.id, user.discord_id]
   )
-  
-  for (const server of servers) {
-    // Get user's presence in this guild
-    const member = await getGuildMember(discordAccessToken, server.discord_guild_id)
-    if (member) {
-      await query(
-        `INSERT INTO user_server_access (user_id, server_id, last_verified)
-         VALUES (?, ?, NOW())
-         ON DUPLICATE KEY UPDATE last_verified = NOW()`,
-        [userId, server.id]
-      )
-    }
-  }
+  return Boolean(grant)
 }
-

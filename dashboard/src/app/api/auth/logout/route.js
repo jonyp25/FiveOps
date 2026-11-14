@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { query } from '@/lib/db'
 
 export async function POST() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('auth_token')?.value
   if (token) {
     await query(`DELETE FROM sessions WHERE token = ?`, [token])
@@ -15,7 +15,7 @@ export async function POST() {
 }
 
 export async function GET(request) {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('auth_token')?.value
   if (token) {
     await query(`DELETE FROM sessions WHERE token = ?`, [token])

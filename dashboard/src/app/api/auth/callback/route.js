@@ -5,7 +5,7 @@ import {
   getDiscordUser, 
   upsertUser, 
   createToken,
-  syncUserServerAccess,
+  getStaffAccessForDiscord,
   upsertSession
 } from '@/lib/auth'
 
@@ -13,11 +13,17 @@ export async function GET(request) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
   const error = searchParams.get('error')
+  const state = searchParams.get('state')
+  const storedState = request.cookies.get('discord_oauth_state')?.value
   
   if (error) {
     return NextResponse.redirect(new URL('/login?error=discord_denied', request.url))
   }
   
+  if (!state || !storedState || state !== storedState) {
+    return NextResponse.redirect(new URL('/login?error=invalid_state', request.url))
+  }
+
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=no_code', request.url))
   }
@@ -32,8 +38,8 @@ export async function GET(request) {
     // Create/update user in database
     const user = await upsertUser(discordUser)
     
-    // Sync server access
-    await syncUserServerAccess(user.id, tokenData.access_token)
+    // Discord login creates a pending account, never an automatic log grant.
+    const staff = await getStaffAccessForDiscord(user.discord_id)
     
     // Create JWT
     const token = await createToken(user)
@@ -48,7 +54,7 @@ export async function GET(request) {
     })
 
     // Set cookie
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     cookieStore.set('auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -64,7 +70,9 @@ export async function GET(request) {
       maxAge: tokenData.expires_in
     })
     
-    return NextResponse.redirect(new URL('/', request.url))
+    const response = NextResponse.redirect(new URL(staff.authorized ? '/' : '/access', request.url))
+    response.cookies.delete('discord_oauth_state')
+    return response
     
   } catch (error) {
     console.error('Auth callback error:', error)
