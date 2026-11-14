@@ -298,6 +298,12 @@ local function logWeaponUsage(weaponName, isKill)
 end
 exports('logWeaponUsage', logWeaponUsage)
 
+-- baseevents dispatches these death notifications over the network.
+-- Register both events as network-safe before attaching the log-only handlers.
+-- Client-reported death details are informational, never grounds for punishment.
+RegisterNetEvent('baseevents:onPlayerDied')
+RegisterNetEvent('baseevents:onPlayerKilled')
+
 -- Weapon Kill Tracking (call on player death)
 AddEventHandler('baseevents:onPlayerDied', function(killerType, deathCoords)
     if killerType and killerType ~= -1 then
@@ -317,6 +323,7 @@ AddEventHandler('baseevents:onPlayerKilled', function(killerId, deathData)
     local victimInfo = getPlayerInfo(src)
     local killerInfo = getPlayerInfo(killerId)
     
+    if type(deathData) ~= 'table' then return end
     local weaponName = deathData.weaponhash or deathData.weapon or "unknown"
     
     sendLogToBackend("player_killed", "combat", {
