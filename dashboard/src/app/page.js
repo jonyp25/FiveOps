@@ -30,13 +30,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login')
-    }
+    if (!authLoading && !user) router.replace('/login')
+    else if (!authLoading && user?.authorized === false) router.replace('/access')
   }, [user, authLoading, router])
 
   useEffect(() => {
-    if (user) {
+    if (user?.authorized && currentServer) {
       fetchData()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
