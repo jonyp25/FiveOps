@@ -8,6 +8,7 @@ const statsRoutes = require('./routes/stats');
 
 const app = express();
 const PORT = process.env.PORT || 3050;
+const HOST = process.env.HOST || '127.0.0.1';
 
 // Middleware
 app.use(express.json());
@@ -37,8 +38,8 @@ app.get("/health", (req, res) => {
 async function startServer() {
   await bootstrap();
   
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Server is running on http://${HOST}:${PORT}`);
   });
 }
 
