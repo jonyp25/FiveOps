@@ -5,4 +5,6 @@ author 'Viseu RP'
 description 'FiveOps server-side event logger for Sky/ESX and ox_inventory'
 version '1.0.0'
 
+dependency 'baseevents'
+
 server_script 'server.lua'
