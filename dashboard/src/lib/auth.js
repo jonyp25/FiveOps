@@ -3,20 +3,24 @@ import { cookies } from 'next/headers'
 import { query, queryOne } from './db'
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this'
+  process.env.JWT_SECRET || ''
 )
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
-const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'http://localhost:3001/api/auth/callback'
+const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001/api/auth/callback')
 
 // Generate Discord OAuth URL
-export function getDiscordAuthUrl() {
+export function getDiscordAuthUrl(state) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI || !state) {
+    throw new Error('Discord OAuth configuration incomplete')
+  }
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     redirect_uri: DISCORD_REDIRECT_URI,
     response_type: 'code',
-    scope: 'identify email guilds guilds.members.read'
+    scope: 'identify email guilds guilds.members.read',
+    state
   })
   return `https://discord.com/api/oauth2/authorize?${params.toString()}`
 }
@@ -135,6 +139,9 @@ export async function upsertUser(discordUser) {
 
 // Create JWT token
 export async function createToken(user) {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must contain at least 32 characters')
+  }
   const token = await new SignJWT({
     userId: user.id,
     discordId: user.discord_id,
@@ -217,6 +224,11 @@ export async function getCurrentUser() {
     return null
   }
   
+  const activeSession = await getSessionByToken(token)
+  if (!activeSession || new Date(activeSession.expires_at) <= new Date()) {
+    return null
+  }
+
   const user = await queryOne(
     'SELECT * FROM users WHERE id = ?',
     [payload.userId]
