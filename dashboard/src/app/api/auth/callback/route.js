@@ -13,11 +13,17 @@ export async function GET(request) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
   const error = searchParams.get('error')
+  const state = searchParams.get('state')
+  const storedState = request.cookies.get('discord_oauth_state')?.value
   
   if (error) {
     return NextResponse.redirect(new URL('/login?error=discord_denied', request.url))
   }
   
+  if (!state || !storedState || state !== storedState) {
+    return NextResponse.redirect(new URL('/login?error=invalid_state', request.url))
+  }
+
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=no_code', request.url))
   }
@@ -64,7 +70,9 @@ export async function GET(request) {
       maxAge: tokenData.expires_in
     })
     
-    return NextResponse.redirect(new URL('/', request.url))
+    const response = NextResponse.redirect(new URL('/', request.url))
+    response.cookies.delete('discord_oauth_state')
+    return response
     
   } catch (error) {
     console.error('Auth callback error:', error)
