@@ -55,6 +55,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install backend dependencies
         run: npm install --no-fund --no-audit
+      - name: Apply non-breaking security fixes to backend dependencies
+        run: npm audit fix --omit=dev --no-fund || true
       - name: Validate backend JavaScript syntax
         run: |
           node --check src/server.js
