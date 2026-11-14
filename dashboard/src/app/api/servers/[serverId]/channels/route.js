@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { requireServerAccess } from '@/lib/telemetry'
 import { query, queryOne } from '@/lib/db'
 
 // Get channels for a server
@@ -28,26 +29,9 @@ export async function GET(request, { params }) {
       [dbServerId]
     )
 
-    // Check server access
-    const isGlobalAdmin = Boolean(user.is_admin)
-    let isServerAdmin = false
-    if (!isGlobalAdmin) {
-      const adminRecord = await queryOne(
-        `SELECT 1 FROM server_admins WHERE server_id = ? AND discord_id = ? AND permission_level IN ('admin','moderator')`,
-        [dbServerId, user.discord_id]
-      )
-      isServerAdmin = !!adminRecord
-    }
-
-    if (!isGlobalAdmin && !isServerAdmin) {
-      const usa = await queryOne(
-        `SELECT 1 FROM user_server_access WHERE user_id = ? AND server_id = ?`,
-        [user.id, dbServerId]
-      )
-      if (!usa) {
-        return NextResponse.json({ error: 'No access to this server' }, { status: 403 })
-      }
-    }
+    // Viewer/moderation staff may read channels, but pending requests never grant access.
+    const grant = await requireServerAccess(user, serverId)
+    if (!grant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const channels = allChannels.map(channel => ({
       ...channel,
