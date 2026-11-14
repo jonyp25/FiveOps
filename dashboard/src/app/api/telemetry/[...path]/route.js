@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { fetchPrivateBackend, requireServerAccess } from '@/lib/telemetry'
+import { getUserServers } from '@/lib/auth'
 
 const allowed = new Set(['search','stats','stats/weapons','stats/vehicles','meta/terms'])
 
@@ -16,11 +17,12 @@ export async function GET(request, { params }) {
     }
 
     const searchParams = new URL(request.url).searchParams
-    if (name !== 'meta/terms') {
-      const server = await requireServerAccess(user, searchParams.get('server_id'))
-      if (!server) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      searchParams.set('server_id', server.identifier)
-    }
+    // Every telemetry path, including metadata, requires approved server access.
+    const requested = searchParams.get('server_id') ||
+      (name === 'meta/terms' ? (await getUserServers(user.id))[0]?.identifier : null)
+    const server = await requireServerAccess(user, requested)
+    if (!server) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    searchParams.set('server_id', server.identifier)
 
     const data = await fetchPrivateBackend('/' + name, searchParams)
     return NextResponse.json(data)
