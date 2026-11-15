@@ -72,11 +72,11 @@ if enabled('fiveops_audit_chat_commands', true) then
                 command = cmd,
                 arguments = args,
                 status = 'observed_in_chat',
-                source = 'chat',
+                origin = 'chat',
                 message = 'Command submitted via chat; execution is not confirmed'
             }, playerId)
         elseif enabled('fiveops_log_public_chat', false) and not message:match('^%s*/') then
-            write('chat_message', 'chat', { message = short(message, 500), source = 'chat' }, playerId)
+            write('chat_message', 'chat', { message = short(message, 500), origin = 'chat' }, playerId)
         end
     end)
 end
@@ -93,7 +93,7 @@ local function txEvent(eventName, eventType, extractor)
         if type(data) == 'table' then
             payload = extractor(data)
         end
-        payload.source = 'txAdmin'
+        payload.origin = 'txAdmin'
         write(eventType, 'txadmin', payload)
     end)
 end
@@ -132,14 +132,14 @@ end)
 AddEventHandler('txAdmin:events:adminsUpdated', function()
     write('tx_admins_updated', 'security', {
         message = 'Admin or permissions list changed in txAdmin; see txAdmin audit file for details',
-        source = 'txAdmin'
+        origin = 'txAdmin'
     })
 end)
 
 AddEventHandler('txAdmin:events:configChanged', function()
     write('tx_config_changed', 'security', {
         message = 'txAdmin configuration changed',
-        source = 'txAdmin'
+        origin = 'txAdmin'
     })
 end)
 
@@ -147,11 +147,11 @@ AddEventHandler('txAdmin:events:scheduledRestart', function(data)
     if type(data) ~= 'table' then return end
     local seconds = tonumber(data.secondsRemaining)
     if seconds ~= 60 and seconds ~= 10 and seconds ~= 0 then return end
-    write('tx_scheduled_restart', 'resource', { secondsRemaining = seconds, source = 'txAdmin' })
+    write('tx_scheduled_restart', 'resource', { secondsRemaining = seconds, origin = 'txAdmin' })
 end)
 
 AddEventHandler('txAdmin:events:scheduledRestartSkipped', function(data)
-    write('tx_restart_skipped', 'resource', { source = 'txAdmin' })
+    write('tx_restart_skipped', 'resource', { origin = 'txAdmin' })
 end)
 
 -- Standard OneSync game events; these are observations, not anti-cheat verdicts.
@@ -171,7 +171,7 @@ if enabled('fiveops_log_explosions', true) then
         write('explosion_detected', 'combat', {
             explosionType = tonumber(data.explosionType), damageScale = tonumber(data.damageScale),
             x = tonumber(data.posX), y = tonumber(data.posY), z = tonumber(data.posZ),
-            isInvisible = data.isInvisible == true, source = 'game_event'
+            isInvisible = data.isInvisible == true, origin = 'game_event'
         }, sender)
     end)
 end
@@ -182,7 +182,7 @@ if enabled('fiveops_log_lethal_damage', true) then
            limited(sender, 'lethal_damage', 1000) then return end
         write('lethal_damage_attempted', 'combat', {
             weaponName = short(data.weaponType), hitEntityId = tonumber(data.hitGlobalId),
-            damageType = tonumber(data.damageType), source = 'game_event',
+            damageType = tonumber(data.damageType), origin = 'game_event',
             message = 'Predicted lethal damage, not a confirmed kill'
         }, sender)
     end)
@@ -201,7 +201,7 @@ if enabled('fiveops_log_vehicle_entities', true) then
         if limited(owner, 'vehicle_entity', 700) then return end
         write('vehicle_entity_created', 'vehicle', {
             vehicleName = tostring(model), modelHash = tostring(model),
-            source = 'entityCreated', message = 'Entity observed, not necessarily a staff spawn'
+            origin = 'entityCreated', message = 'Entity observed, not necessarily a staff spawn'
         }, owner)
     end)
 end
@@ -215,12 +215,12 @@ local function attachInventoryHooks()
         { hook = 'createItem', event = 'item_created', extractor = function(p)
             return { itemName = type(p.item) == 'table' and short(p.item.name) or short(p.item),
                      count = tonumber(p.count), inventoryId = short(p.inventoryId),
-                     action = 'create', source = 'ox_inventory' }
+                     action = 'create', origin = 'ox_inventory' }
         end },
         { hook = 'craftItem', event = 'item_crafted', extractor = function(p)
             return { itemName = type(p.recipe) == 'table' and short(p.recipe.name) or nil,
                      count = type(p.recipe) == 'table' and tonumber(p.recipe.count) or nil,
-                     benchId = short(p.benchId), source = 'ox_inventory' }
+                     benchId = short(p.benchId), origin = 'ox_inventory' }
         end }
     }
     local attached = 0
@@ -261,7 +261,7 @@ exports('logStaffAction', function(adminId, action, targetId, details)
     write('staff_action', 'staff', {
         action = short(action, 80), targetPlayerId = tonumber(targetId),
         details = short(details, 300), status = 'completed',
-        source = 'script_integration'
+        origin = 'script_integration'
     }, adminId)
 end)
 
@@ -270,7 +270,7 @@ exports('logEconomyAction', function(playerId, action, amount, account, targetId
     write('economy_transaction', 'economy', {
         action = short(action, 80), amount = tonumber(amount),
         account = short(account, 40), targetPlayerId = tonumber(targetId),
-        source = 'script_integration'
+        origin = 'script_integration'
     }, playerId)
 end)
 
@@ -279,7 +279,7 @@ exports('logJobAction', function(playerId, action, job, grade, targetId)
     write('job_changed', 'job', {
         action = short(action, 80), job = short(job, 80),
         grade = tonumber(grade), targetPlayerId = tonumber(targetId),
-        source = 'script_integration'
+        origin = 'script_integration'
     }, playerId)
 end)
 
@@ -288,7 +288,7 @@ exports('logVehicleAction', function(playerId, action, plate, model, targetId)
     write('vehicle_action', 'vehicle', {
         action = short(action, 80), plate = short(plate, 32),
         vehicleName = short(model, 100), targetPlayerId = tonumber(targetId),
-        source = 'script_integration'
+        origin = 'script_integration'
     }, playerId)
 end)
 
