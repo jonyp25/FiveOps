@@ -143,6 +143,13 @@ npm run dev
 ### 4. Lua Integration
 Move the `fivem-logging.lua` into your FiveM Server's resource folder and add the appropriate API keys to your `server.cfg`. Read the [Integration Docs](docs/INTEGRATION.md) for details.
 
+## Viseu RP: Advanced Audit
+
+The `fivem-logger` resource includes txAdmin, staff-command attempts, ox_inventory,
+combat and vehicle audit hooks, plus trusted server exports for Sky/ESX actions.
+Read [Advanced Viseu RP Logging](docs/VISEU_RP_LOGGING.md) for installation,
+privacy safeguards and the distinction between command attempts and confirmed actions.
+
 ## Documentation
 
 We believe in making powerful tools easy to use through exceptional documentation. Dive deeper into the specific areas of the exact systems you wish to explore:

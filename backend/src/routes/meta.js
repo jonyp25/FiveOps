@@ -15,7 +15,7 @@ router.get('/meta/terms', async (req, res) => {
       size: 0,
       aggs: {
         categories: {
-          terms: { field: 'category.keyword', size: aggSize }
+          terms: { field: 'category', size: aggSize }
         },
         event_types: {
           // Primary aggregation on event_type (keyword field)

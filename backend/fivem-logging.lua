@@ -5,7 +5,8 @@ local IS_DEV_SERVER = GetConvar('isDevServer', 'false') == 'true'
 local SERVER_NAME = GetConvar("sv_hostname", "unknown")
 local SERVER_ID = GetConvar("sv_projectName", "unknown")
 
-local apikey = "fivem_3d31edce-c1a9-4ba1-837c-f905232c4a1e"
+-- The legacy standalone integration must never embed a secret in a public repository.
+local apikey = GetConvar('fiveops_ingest_key', '')
 
 -- Helper: Extract standard player info for Elastic
 local function getPlayerInfo(src)
@@ -29,6 +30,7 @@ end
 
 -- Helper: Send to Node.js Backend
 local function sendLogToBackend(eventType, category, payload, extraMeta)
+    if apikey == '' then return end
     local body = {
         ["@timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
         event_type = eventType,
@@ -52,7 +54,7 @@ local function sendLogToBackend(eventType, category, payload, extraMeta)
         if err ~= 200 and err ~= 201 then
             print("^1[Logging] Failed to send log to backend. Status: " .. tostring(err) .. "^0")
         end
-    end, "POST", json.encode(body), { ["Content-Type"] = "application/json" })
+    end, "POST", json.encode(body), { ["Content-Type"] = "application/json", ["X-FiveOps-Key"] = apikey })
 end
 
 -- Legacy Export Support (Redirects to backend)

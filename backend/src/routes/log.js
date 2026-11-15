@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const express = require('express');
 const client = require('../elastic/client');
 
@@ -5,6 +6,19 @@ const router = express.Router();
 const INDEX_NAME = process.env.ELASTICSEARCH_INDEX || 'fivem-logs';
 
 router.post('/log', async (req, res) => {
+  // Fail closed if a shared ingest key has not been configured on the server.
+  const expectedKey = process.env.FIVEOPS_INGEST_KEY;
+  if (!expectedKey || expectedKey.length < 32) {
+    return res.status(503).json({ error: 'Log ingestion is not configured' });
+  }
+
+  const providedKey = req.get('X-FiveOps-Key') || '';
+  const a = Buffer.from(providedKey);
+  const b = Buffer.from(expectedKey);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
     const logEntry = req.body;
 
@@ -26,6 +40,22 @@ router.post('/log', async (req, res) => {
     // Ensure @timestamp exists
     if (!logEntry['@timestamp']) {
       logEntry['@timestamp'] = new Date().toISOString();
+    }
+
+    // Elasticsearch already maps payload.toSlot as an object. Some FiveM events
+    // send a scalar here, which otherwise rejects the entire log with HTTP 400.
+    // Preserve the scalar in a separate stable string field without modifying
+    // the existing index mapping or previously stored documents.
+    if (
+      logEntry.payload &&
+      typeof logEntry.payload === 'object' &&
+      !Array.isArray(logEntry.payload) &&
+      Object.prototype.hasOwnProperty.call(logEntry.payload, 'toSlot') &&
+      logEntry.payload.toSlot !== null &&
+      (typeof logEntry.payload.toSlot !== 'object' || Array.isArray(logEntry.payload.toSlot))
+    ) {
+      logEntry.payload.toSlotScalar = String(logEntry.payload.toSlot);
+      delete logEntry.payload.toSlot;
     }
 
     // Index the document

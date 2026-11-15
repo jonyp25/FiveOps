@@ -14,6 +14,11 @@ const categoryColors = {
   vehicle: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
   legacy: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   test: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+  staff: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  security: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  economy: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  job: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  world: "bg-teal-500/10 text-teal-400 border-teal-500/20",
 }
 
 export function LogTable({ logs }) {
@@ -64,6 +69,12 @@ export function LogTable({ logs }) {
                   className="text-sm font-medium text-zinc-100 hover:text-white hover:underline transition-colors"
                 >
                   {log._source.event_type}
+                  {log._source.payload?.command && (
+                    <span className="ml-2 text-zinc-400">/{log._source.payload.command}</span>
+                  )}
+                  {!log._source.payload?.command && log._source.payload?.action && (
+                    <span className="ml-2 text-zinc-400">· {log._source.payload.action}</span>
+                  )}
                 </Link>
               </td>
               <td className="p-4 align-middle">
@@ -76,7 +87,7 @@ export function LogTable({ logs }) {
               </td>
               <td className="p-4 align-middle">
                 <div className="text-sm text-zinc-300">
-                  {log._source.player?.name || '-'}
+                  {log._source.player?.name || log._source.payload?.author || '-'}
                 </div>
                 {log._source.player?.id && (
                   <div className="text-xs text-zinc-500">

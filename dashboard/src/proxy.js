@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this'
+  process.env.JWT_SECRET || ''
 )
 
 // Public routes that don't require authentication
@@ -13,7 +13,7 @@ const publicRoutes = [
   '/api/auth/logout',
 ]
 
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl
   
   // Allow public routes
@@ -34,6 +34,7 @@ export async function middleware(request) {
   
   try {
     // Verify JWT
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error('Missing JWT secret')
     await jwtVerify(token, JWT_SECRET)
     return NextResponse.next()
   } catch (error) {

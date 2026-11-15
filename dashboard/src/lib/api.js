@@ -1,4 +1,4 @@
-import { API_URL } from './utils'
+const API_URL = '/api/telemetry'
 
 // ==========================================
 // LOG SEARCH
@@ -25,12 +25,7 @@ export async function searchLogs(params = {}) {
   if (params.page) searchParams.append('page', params.page)
   if (params.limit) searchParams.append('limit', params.limit)
 
-  const serverId = params.server_id
-  const url = serverId
-    ? `/api/servers/${serverId}/search?${searchParams.toString()}`
-    : `${API_URL}/search?${searchParams.toString()}`
-
-  const response = await fetch(url)
+  const response = await fetch(`${API_URL}/search?${searchParams.toString()}`)
   
   if (!response.ok) {
     throw new Error('Failed to load logs')
