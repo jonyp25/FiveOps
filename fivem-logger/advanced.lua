@@ -240,7 +240,8 @@ local function attachInventoryHooks()
             print(('[FiveOps] ox_inventory posthook unavailable: %s'):format(def.hook))
         end
     end
-    oxAttached = attached == #definitions
+    -- Do not register the same successful hook again if one optional hook is unavailable.
+    oxAttached = true
 end
 
 AddEventHandler('onServerResourceStart', function(resourceName)
