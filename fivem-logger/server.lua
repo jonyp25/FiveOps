@@ -14,6 +14,8 @@ end
 local function getPlayerInfo(src)
     if not src or src == 0 or src == "" or src == -1 then return nil end
     
+    src = tonumber(src)
+    if not src or src <= 0 then return nil end
     local name = GetPlayerName(src)
     if not name then return nil end
 
@@ -61,6 +63,17 @@ local function sendLogToBackend(eventType, category, payload, extraMeta)
         ["X-FiveOps-Key"] = INGEST_KEY
     })
 end
+
+-- Trusted SERVER exports for other resources and the advanced audit module.
+-- Never expose this as a RegisterNetEvent: only server resources may create
+-- authoritative, script-confirmed audit records.
+exports('logEvent', function(eventType, category, payload, playerId)
+    if type(eventType) ~= 'string' or type(category) ~= 'string' or
+       type(payload) ~= 'table' then return end
+    local src = tonumber(playerId)
+    sendLogToBackend(eventType:sub(1, 100), category:sub(1, 60), payload,
+        src and src > 0 and { player = getPlayerInfo(src) } or nil)
+end)
 
 -- Legacy Export Support (Redirects to backend)
 local function sendLogThroughApi(channelId, message)
@@ -138,8 +151,13 @@ AddEventHandler('onResourceStart', function(resource)
         local data = {
             action = payload.action,
             source = payload.source,
-            fromSlot = payload.fromSlot,
-            toSlot = payload.toSlot,
+            fromSlotName = type(payload.fromSlot) == 'table' and payload.fromSlot.name or nil,
+            fromSlotId = type(payload.fromSlot) == 'table' and payload.fromSlot.slot or nil,
+            toSlotName = type(payload.toSlot) == 'table' and payload.toSlot.name or nil,
+            toSlotId = type(payload.toSlot) == 'table' and payload.toSlot.slot or
+                       (type(payload.toSlot) == 'number' and payload.toSlot or nil),
+            fromType = payload.fromType,
+            toType = payload.toType,
             count = payload.count,
             coords = payload.coords,
             fromPlayer = fromPlayerInfo,
@@ -193,7 +211,7 @@ RegisterNetEvent('txsv:req:spectate:start', function(targetSource)
     sendLogToBackend("tx_spectate_start", "txadmin", payload, { player = adminInfo })
 end)
 
-RegisterNetEvent('txAdmin:events:playerDirectMessage', function(eventData)
+AddEventHandler('txAdmin:events:playerDirectMessage', function(eventData)
     local targetInfo = getPlayerInfo(eventData.target)
     
     local payload = {
@@ -205,7 +223,7 @@ RegisterNetEvent('txAdmin:events:playerDirectMessage', function(eventData)
     sendLogToBackend("tx_dm", "txadmin", payload)
 end)
 
-RegisterNetEvent('txAdmin:events:actionRevoked', function(eventData)
+AddEventHandler('txAdmin:events:actionRevoked', function(eventData)
     local action = eventData.actionType == 'ban' and 'not_found' or eventData.actionType == 'warn' and 'Warned' or "Unknown"
 
     local payload = {
@@ -220,7 +238,7 @@ RegisterNetEvent('txAdmin:events:actionRevoked', function(eventData)
     sendLogToBackend("tx_action_revoked", "txadmin", payload)
 end)
 
-RegisterNetEvent('txAdmin:events:playerKicked', function(eventData)
+AddEventHandler('txAdmin:events:playerKicked', function(eventData)
     local targetInfo = getPlayerInfo(eventData.target)
     
     local payload = {
@@ -232,7 +250,7 @@ RegisterNetEvent('txAdmin:events:playerKicked', function(eventData)
     sendLogToBackend("tx_kicked", "txadmin", payload)
 end)
 
-RegisterNetEvent('txAdmin:events:playerBanned', function(eventData)
+AddEventHandler('txAdmin:events:playerBanned', function(eventData)
     local targetInfo = getPlayerInfo(eventData.target)
 
     local payload = {
@@ -245,7 +263,7 @@ RegisterNetEvent('txAdmin:events:playerBanned', function(eventData)
     sendLogToBackend("tx_banned", "txadmin", payload)
 end)
 
-RegisterNetEvent('txAdmin:events:playerWarned', function(eventData)
+AddEventHandler('txAdmin:events:playerWarned', function(eventData)
     local targetInfo = getPlayerInfo(eventData.targetNetId)
 
     local payload = {
@@ -272,7 +290,7 @@ RegisterNetEvent('txsv:req:healPlayer', function(targetSource)
     sendLogToBackend("tx_healed", "txadmin", payload, { player = adminInfo })
 end)
 
-RegisterNetEvent('txAdmin:events:announcement', function(eventData)
+AddEventHandler('txAdmin:events:announcement', function(eventData)
     local payload = {
         author = eventData.author,
         message = eventData.message
