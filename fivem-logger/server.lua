@@ -214,9 +214,11 @@ end)
 AddEventHandler('txAdmin:events:playerDirectMessage', function(eventData)
     local targetInfo = getPlayerInfo(eventData.target)
     
+    local keepContent = GetConvar('fiveops_log_private_messages', 'false') == 'true'
     local payload = {
         author = eventData.author,
-        message = eventData.message,
+        message = keepContent and eventData.message or nil,
+        messageLength = type(eventData.message) == 'string' and #eventData.message or nil,
         targetPlayer = targetInfo
     }
 
