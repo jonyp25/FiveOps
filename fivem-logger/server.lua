@@ -251,29 +251,32 @@ AddEventHandler('txAdmin:events:playerKicked', function(eventData)
 end)
 
 AddEventHandler('txAdmin:events:playerBanned', function(eventData)
-    local targetInfo = getPlayerInfo(eventData.target)
-
-    local payload = {
+    if type(eventData) ~= 'table' then return end
+    local targetId = eventData.targetNetId or eventData.target
+    local targetInfo = getPlayerInfo(targetId)
+    sendLogToBackend("tx_banned", "txadmin", {
         author = eventData.author,
         reason = eventData.reason,
         expiration = eventData.expiration,
+        actionId = eventData.actionId,
+        targetPlayerId = tonumber(targetId),
+        targetName = eventData.targetName or (targetInfo and targetInfo.name),
         targetPlayer = targetInfo
-    }
-
-    sendLogToBackend("tx_banned", "txadmin", payload)
+    })
 end)
 
 AddEventHandler('txAdmin:events:playerWarned', function(eventData)
-    local targetInfo = getPlayerInfo(eventData.targetNetId)
-
-    local payload = {
+    if type(eventData) ~= 'table' then return end
+    local targetId = eventData.targetNetId or eventData.target
+    local targetInfo = getPlayerInfo(targetId)
+    sendLogToBackend("tx_warned", "txadmin", {
         author = eventData.author,
         reason = eventData.reason,
         actionId = eventData.actionId,
+        targetPlayerId = tonumber(targetId),
+        targetName = eventData.targetName or (targetInfo and targetInfo.name),
         targetPlayer = targetInfo
-    }
-
-    sendLogToBackend("tx_warned", "txadmin", payload)
+    })
 end)
 
 RegisterNetEvent('txsv:req:healPlayer', function(targetSource)
