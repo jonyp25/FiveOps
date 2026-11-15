@@ -37,6 +37,7 @@ Se o recurso foi renomeado, mudar também o nome `fivem-logger` nos exports abai
 set fiveops_audit_chat_commands "true"
 set fiveops_log_command_arguments "false"
 set fiveops_log_public_chat "false"
+set fiveops_log_private_messages "false"
 set fiveops_log_explosions "true"
 set fiveops_log_lethal_damage "true"
 set fiveops_log_vehicle_entities "true"
